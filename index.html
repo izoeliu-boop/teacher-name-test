@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>認識老師配對</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* 版面：上方計分列，下方左「老師照片」右「名牌」；手機改為上下堆疊 */
+:root {
+  --bg: #eef3ef;
+  --surface: #ffffff;
+  --plate: #ffffff;
+  --ink: #1d2a24;
+  --muted: #5d6f66;
+  --line: #cfdcd4;
+  --frame: #7f93c9;
+  --accent: #1f6f5c;
+  --accent-ink: #ffffff;
+  --ok: #23824f;
+  --ok-soft: #dff2e6;
+  --bad: #c0392b;
+  --bad-soft: #fbe3e0;
+  --stamp: #d2483f;
+  --shadow: 0 1px 2px rgba(20,40,30,.08), 0 4px 14px rgba(20,40,30,.08);
+  --font-display: "LXGW WenKai TC", "Kaiti TC", "DFKai-SB", "標楷體", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111814; --surface: #1a2420; --plate: #f4f6f5; --ink: #e5eee9; --muted: #9db0a6; --line: #2e3d36;
+    --frame: #8fa3db; --accent: #4fb79a; --accent-ink: #0d1612;
+    --ok: #5cc98d; --ok-soft: #173a27; --bad: #ef7d70; --bad-soft: #3d1d1a; --stamp: #e3736b;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.3);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+[hidden] { display: none !important; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.title-block { min-width: 0; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4.2vw, 40px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.lead { margin: 4px 0 0; color: var(--muted); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+
+button { font: inherit; cursor: pointer; }
+.btn {
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+  padding: 8px 14px; border-radius: 10px; font-weight: 500;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:focus-visible, .card:focus-visible, .target:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+
+.scorebar {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+}
+.stat { background: var(--surface); padding: 10px 16px; display: grid; gap: 2px; }
+.stat .k { font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+.stat .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .v small { font-size: 15px; color: var(--muted); font-weight: 500; }
+.stat.score .v { color: var(--accent); }
+.progress { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; grid-column: 1 / -1; }
+.progress > i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .4s ease; }
+
+.board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: start; }
+.panel { display: grid; gap: 12px; min-width: 0; }
+.panel h2 { font-size: 15px; font-weight: 700; margin: 0; color: var(--muted); letter-spacing: .06em; }
+.tray, .targets { display: grid; gap: 14px; }
+.tray { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.targets { grid-template-columns: 1fr; }
+.tray-empty { color: var(--muted); padding: 20px; border: 2px dashed var(--line); border-radius: 14px; text-align: center; grid-column: 1 / -1; }
+
+/* 照片：用 crop 設定只露出相框裡的人像 */
+.ph { position: relative; width: 100%; overflow: hidden; border-radius: 8px; background: var(--line); }
+.ph img { position: absolute; display: block; height: auto; max-width: none; pointer-events: none; }
+.ph .miss { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-size: 12px; color: var(--muted); padding: 6px; }
+
+.card {
+  align-self: start; max-width: 100%;
+  background: var(--surface); border: 3px solid var(--frame); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 4px;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  transition: transform .15s ease, opacity .15s ease, border-color .15s;
+}
+.card:hover { transform: translateY(-2px); }
+.card.lifting { opacity: .3; }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); }
+.ghost {
+  position: fixed; left: 0; top: 0; width: 120px; z-index: 50; pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-4deg) scale(1.05); opacity: .95; cursor: grabbing;
+}
+
+/* 名牌：左邊放照片的空位，右邊是名字圖；點名牌可聽老師的名字 */
+.target {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center;
+  background: var(--surface); border: 2px solid var(--line); border-radius: 14px; padding: 10px;
+  cursor: pointer;
+  transition: background-color .2s, border-color .2s, transform .2s;
+}
+.slot {
+  min-height: 120px; width: 100%; border: 2px dashed var(--frame); border-radius: 10px;
+  display: grid; place-items: center; color: var(--muted); font-size: 13px; overflow: hidden;
+}
+.slot .ph { animation: pop .35s ease; border-radius: 0; }
+.plate {
+  background: var(--plate); border-radius: 10px; padding: 10px 44px 10px 14px; min-width: 0;
+  display: grid; place-items: center; position: relative; min-height: 70px;
+}
+.plate > img { width: 100%; max-width: 360px; height: auto; display: block; }
+.plate .name { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 3.6vw, 38px); color: #1d2a24; }
+.speaker {
+  position: absolute; right: 8px; bottom: 8px; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; background: #e7efe9; color: #1f6f5c;
+}
+.speaker svg { width: 18px; height: 18px; }
+.target.playing .speaker { background: #1f6f5c; color: #ffffff; }
+.target.hover { background-color: var(--ok-soft); transform: scale(1.02); border-color: var(--accent); }
+.target.done { border-color: var(--ok); background-color: var(--ok-soft); }
+.target.done .slot { border: 3px solid var(--ok); }
+.badge {
+  position: absolute; right: 8px; top: 6px; font-size: 12px; font-weight: 700;
+  color: #23824f; background: #ffffff; border: 1px solid #23824f;
+  border-radius: 99px; padding: 0 8px; font-variant-numeric: tabular-nums;
+}
+.target.wrong { animation: shake .45s ease; border-color: var(--bad); background-color: var(--bad-soft); }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(3px)} }
+@keyframes pop { from { transform: scale(.4); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+
+.toast { min-height: 1.6em; font-weight: 500; color: var(--muted); }
+.toast.ok { color: var(--ok); }
+.toast.bad { color: var(--bad); }
+
+dialog {
+  border: none; border-radius: 18px; padding: 0; background: var(--surface); color: var(--ink);
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+dialog::backdrop { background: rgba(10,20,15,.45); }
+.dlg { display: grid; gap: 10px; padding: 22px; text-align: center; justify-items: center; }
+.dlg h2 { font-family: var(--font-display); font-size: 26px; margin: 0; }
+.dlg p { margin: 0; color: var(--muted); }
+.stamp {
+  width: 100px; height: 100px; border-radius: 50%; margin-top: 6px;
+  border: 5px solid var(--stamp); color: var(--stamp);
+  display: grid; place-items: center; transform: rotate(-12deg);
+  font-family: var(--font-display); font-weight: 700; font-size: 32px; line-height: 1;
+  animation: stamp .5s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes stamp { from { transform: rotate(-12deg) scale(2.2); opacity: 0 } to { transform: rotate(-12deg) scale(1); opacity: 1 } }
+.final-score { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.final-score small { font-size: 18px; color: var(--muted); }
+.review { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.review figure { margin: 0; display: grid; gap: 4px; justify-items: center; width: 84px; }
+.review .pic { width: 84px; border: 2px solid var(--frame); border-radius: 8px; overflow: hidden; }
+.review figcaption { font-size: 14px; font-weight: 500; }
+
+@media (max-width: 760px) {
+  .board { grid-template-columns: 1fr; }
+  .scorebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tray { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .target { grid-template-columns: 72px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="title-block">
+      <h1>認識我們的老師</h1>
+      <p class="lead">把老師的照片拖到正確的名牌上。點名牌可以聽老師的名字。</p>
+    </div>
+    <div class="tools">
+      <button class="btn" id="btnSound" type="button" aria-pressed="true">聲音：開</button>
+      <button class="btn primary" id="btnRestart" type="button">重新開始</button>
+    </div>
+  </header>
+
+  <section class="scorebar" aria-live="polite">
+    <div class="stat score"><span class="k">得分</span><span class="v" id="sScore">0<small> / 100</small></span></div>
+    <div class="stat"><span class="k">完成題數</span><span class="v" id="sDone">0<small> / 0</small></span></div>
+    <div class="stat"><span class="k">每題配分</span><span class="v" id="sPer">0<small> 分</small></span></div>
+    <div class="stat"><span class="k">答錯次數</span><span class="v" id="sWrong">0</span></div>
+    <div class="progress"><i id="sBar"></i></div>
+  </section>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <main class="board">
+    <section class="panel">
+      <h2>老師照片</h2>
+      <div class="tray" id="tray"></div>
+    </section>
+    <section class="panel">
+      <h2>名牌</h2>
+      <div class="targets" id="targets"></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlgResult">
+  <div class="dlg">
+    <div class="stamp" id="rStamp">甲上</div>
+    <h2 id="rTitle">全部完成！</h2>
+    <div class="final-score" id="rScore">100<small> 分</small></div>
+    <p id="rNote"></p>
+    <div class="review" id="rReview"></div>
+    <button class="btn primary" id="rAgain" type="button">再玩一次</button>
+  </div>
+</dialog>
+
+<script>
+/*
+  ===== 老師名單 =====
+  每位老師需要三個檔案，檔名要和 name 完全一樣：
+    picture/{name}.JPG   老師照片
+    word/{name}.png      名字圖
+    voice/{name}.wav     名字的聲音
+  crop 是照片要露出的範圍（左, 上, 寬, 高），用整張照片的比例表示（0 到 1），用來避開紀念冊上印的名字。
+  新增老師時，crop 可以寫 [0, 0, 1, 1]，代表顯示整張照片。
+*/
+const TEACHERS = [
+  { name: '張雅惠老師', crop: [0.253, 0.278, 0.503, 0.472] },
+  { name: '劉以柔老師', crop: [0.233, 0.230, 0.526, 0.520] },
+  { name: '白宣芸老師', crop: [0.217, 0.185, 0.543, 0.535] },
+  { name: '王純惠老師', crop: [0.167, 0.235, 0.606, 0.560] }
+];
+const PHOTO_RATIO = 3 / 4;   // 照片的寬 ÷ 高（直式手機照片是 3:4）
+const PHOTO_EXT = '.JPG', WORD_EXT = '.png', VOICE_EXT = '.wav';
+
+(function () {
+  const path = (folder, name, ext) => folder + '/' + encodeURIComponent(name) + ext;
+  const items = TEACHERS.map((t, i) => ({
+    id: 't' + i,
+    name: t.name,
+    crop: t.crop || [0, 0, 1, 1],
+    photo: path('picture', t.name, PHOTO_EXT),
+    word: path('word', t.name, WORD_EXT),
+    voice: path('voice', t.name, VOICE_EXT)
+  }));
+  const byId = id => items.find(x => x.id === id);
+
+  let results = {};
+  let selectedId = null;
+  let soundOn = true;
+
+  const $ = id => document.getElementById(id);
+  const tray = $('tray'), targets = $('targets'), toast = $('toast');
+  const SPEAKER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+
+  // ---- 計分 ----
+  const per = () => 100 / items.length;
+  const fmt = n => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
+  const totalScore = () => Object.values(results).reduce((s, r) => s + r.points, 0);
+
+  function updateScore() {
+    const n = items.length;
+    const done = Object.values(results).filter(r => r.done).length;
+    const wrong = Object.values(results).reduce((s, r) => s + r.wrong, 0);
+    $('sScore').innerHTML = fmt(totalScore()) + '<small> / 100</small>';
+    $('sDone').innerHTML = done + '<small> / ' + n + '</small>';
+    $('sPer').innerHTML = fmt(per()) + '<small> 分</small>';
+    $('sWrong').textContent = wrong;
+    $('sBar').style.width = (done / n * 100) + '%';
+  }
+
+  // ---- 畫面 ----
+  function shuffle(a) {
+    const b = a.slice();
+    for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+    return b;
+  }
+  // 外框的比例等於裁切範圍的比例，照片放大後往左上移，只露出裁切範圍
+  function photoHTML(it) {
+    const [x, y, w, h] = it.crop;
+    const box = 'aspect-ratio:' + (w * PHOTO_RATIO / h).toFixed(4);
+    const style = 'width:' + (100 / w) + '%;left:' + (-x / w * 100) + '%;top:' + (-y / h * 100) + '%';
+    return '<div class="ph" style="' + box + '"><img alt="" draggable="false" src="' + it.photo + '" style="' + style + '" ' +
+      'onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'miss\',textContent:\'照片載入失敗\'}))"></div>';
+  }
+  function escapeHTML(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function start() {
+    stopVoice();
+    results = {};
+    selectedId = null;
+    items.forEach(it => { results[it.id] = { wrong: 0, done: false, points: 0 }; });
+    tray.innerHTML = '';
+    targets.innerHTML = '';
+    shuffle(items).forEach((it, i) => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.dataset.id = it.id;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', '老師照片 ' + (i + 1));
+      el.innerHTML = photoHTML(it);
+      tray.appendChild(el);
+    });
+    shuffle(items).forEach(it => {
+      const el = document.createElement('div');
+      el.className = 'target';
+      el.dataset.id = it.id;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', '名牌 ' + it.name + '，點一下聽名字');
+      el.innerHTML = '<div class="slot">放照片</div><div class="plate">' +
+        '<img alt="' + escapeHTML(it.name) + '" src="' + it.word + '" onerror="this.outerHTML=\'<span class=&quot;name&quot;>' + escapeHTML(it.name) + '</span>\'">' +
+        '<span class="speaker">' + SPEAKER + '</span></div>';
+      targets.appendChild(el);
+    });
+    say('');
+    updateScore();
+  }
+
+  function say(msg, kind) {
+    toast.textContent = msg;
+    toast.className = 'toast' + (kind ? ' ' + kind : '');
+  }
+
+  function select(id) {
+    selectedId = id;
+    tray.querySelectorAll('.card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+    if (id) say('已選好照片，請點這位老師的名牌。');
+  }
+
+  // ---- 老師名字的聲音 ----
+  let current = null;
+  function stopVoice() {
+    if (current) { current.audio.pause(); current.el && current.el.classList.remove('playing'); current = null; }
+  }
+  function playVoice(it) {
+    if (!soundOn) return;
+    stopVoice();
+    const audio = new Audio(it.voice);
+    const el = targets.querySelector('.target[data-id="' + it.id + '"]');
+    current = { audio, el };
+    if (el) el.classList.add('playing');
+    const done = () => { if (current && current.audio === audio) { el && el.classList.remove('playing'); current = null; } };
+    audio.addEventListener('ended', done);
+    audio.addEventListener('error', () => { done(); say('找不到' + it.name + '的聲音檔。', 'bad'); });
+    audio.play().catch(done);
+  }
+
+  // ---- 判斷對錯 ----
+  function attempt(cardId, targetId) {
+    const r = results[cardId];
+    const target = targets.querySelector('.target[data-id="' + targetId + '"]');
+    if (!r || r.done || !target || target.classList.contains('done')) return;
+    if (cardId === targetId) {
+      r.done = true;
+      r.points = r.wrong === 0 ? per() : 0;
+      const it = byId(cardId);
+      target.classList.add('done');
+      target.classList.remove('hover');
+      target.querySelector('.slot').innerHTML = photoHTML(it);
+      target.querySelector('.plate').insertAdjacentHTML('beforeend', '<span class="badge">+' + fmt(r.points) + '</span>');
+      const card = tray.querySelector('.card[data-id="' + cardId + '"]');
+      if (card) card.remove();
+      say(r.wrong === 0 ? '答對了！這是' + it.name + '，+' + fmt(r.points) + ' 分' :
+        '答對了！這是' + it.name + '。這題之前答錯過，不加分。', 'ok');
+      select(null);
+      playVoice(it);
+      checkFinish();
+    } else {
+      r.wrong++;
+      target.classList.remove('wrong');
+      void target.offsetWidth;
+      target.classList.add('wrong');
+      setTimeout(() => target.classList.remove('wrong'), 600);
+      say('不對喔，再仔細看看！', 'bad');
+      beep();
+    }
+    updateScore();
+  }
+
+  function checkFinish() {
+    if (Object.values(results).some(r => !r.done)) return;
+    tray.innerHTML = '<div class="tray-empty">照片都配對完成了。點名牌可以再聽一次老師的名字。</div>';
+    const score = Math.round(totalScore() * 10) / 10;
+    const grade = score >= 90 ? '甲上' : score >= 80 ? '甲' : score >= 70 ? '乙上' : score >= 60 ? '乙' : '加油';
+    $('rStamp').textContent = grade;
+    $('rScore').innerHTML = fmt(score) + '<small> 分</small>';
+    const missed = items.filter(it => results[it.id].wrong > 0);
+    $('rTitle').textContent = missed.length === 0 ? '全部一次答對！' : '全部完成！';
+    $('rNote').textContent = missed.length === 0 ? '太厲害了，每一位老師都認對了。' : '下面這幾位老師答錯過，再多看幾次就記住了：';
+    $('rReview').innerHTML = missed.map(it =>
+      '<figure><div class="pic">' + photoHTML(it) + '</div><figcaption>' + escapeHTML(it.name) + '</figcaption></figure>').join('');
+    setTimeout(() => { try { $('dlgResult').showModal(); } catch (e) {} }, 1500);
+  }
+
+  // ---- 拖曳（滑鼠與觸控共用 Pointer Events）----
+  let drag = null;
+  tray.addEventListener('pointerdown', e => {
+    const card = e.target.closest('.card');
+    if (!card || e.button > 0) return;
+    e.preventDefault();
+    card.setPointerCapture(e.pointerId);
+    drag = { card, id: card.dataset.id, x0: e.clientX, y0: e.clientY, ghost: null, over: null };
+  });
+  tray.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (!drag.ghost && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6) {
+      const g = drag.card.cloneNode(true);
+      g.classList.add('ghost');
+      g.classList.remove('selected');
+      document.body.appendChild(g);
+      drag.ghost = g;
+      drag.card.classList.add('lifting');
+    }
+    if (drag.ghost) {
+      drag.ghost.style.left = e.clientX + 'px';
+      drag.ghost.style.top = e.clientY + 'px';
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const t = under && under.closest('.target:not(.done)');
+      if (t !== drag.over) {
+        if (drag.over) drag.over.classList.remove('hover');
+        if (t) t.classList.add('hover');
+        drag.over = t;
+      }
+    }
+  });
+  function endDrag(cancelled) {
+    if (!drag) return;
+    const d = drag; drag = null;
+    d.card.classList.remove('lifting');
+    if (d.over) d.over.classList.remove('hover');
+    if (d.ghost) {
+      d.ghost.remove();
+      if (!cancelled && d.over) attempt(d.id, d.over.dataset.id);
+    } else if (!cancelled) {
+      select(selectedId === d.id ? null : d.id);   // 沒移動 = 點選
+    }
+  }
+  tray.addEventListener('pointerup', () => endDrag(false));
+  tray.addEventListener('pointercancel', () => endDrag(true));
+
+  // 點名牌：有選照片就配對，沒選照片就播放老師的名字
+  targets.addEventListener('click', e => {
+    const t = e.target.closest('.target');
+    if (!t) return;
+    if (selectedId && !t.classList.contains('done')) attempt(selectedId, t.dataset.id);
+    else playVoice(byId(t.dataset.id));
+  });
+  tray.addEventListener('keydown', e => {
+    const card = e.target.closest('.card');
+    if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(selectedId === card.dataset.id ? null : card.dataset.id); }
+  });
+  targets.addEventListener('keydown', e => {
+    const t = e.target.closest('.target');
+    if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); t.click(); }
+  });
+
+  // 答錯的提示音
+  let actx = null;
+  function beep() {
+    if (!soundOn) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      [220, 180].forEach((f, i) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = 'square'; o.frequency.value = f;
+        const t0 = actx.currentTime + i * 0.11;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t0); o.stop(t0 + 0.2);
+      });
+    } catch (e) {}
+  }
+  $('btnSound').addEventListener('click', () => {
+    soundOn = !soundOn;
+    if (!soundOn) stopVoice();
+    $('btnSound').textContent = '聲音：' + (soundOn ? '開' : '關');
+    $('btnSound').setAttribute('aria-pressed', String(soundOn));
+  });
+
+  $('btnRestart').addEventListener('click', start);
+  $('rAgain').addEventListener('click', () => { $('dlgResult').close(); start(); });
+
+  start();
+})();
+</script>
+</body>
+</html>
